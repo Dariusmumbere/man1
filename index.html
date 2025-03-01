@@ -452,6 +452,15 @@
         themeIcon.classList.add('fa-moon');
       }
     });
+    // Fetch and display bank account balance
+async function fetchBankAccountBalance() {
+  const response = await fetch(`${backendUrl}/bank_account/`);
+  const data = await response.json();
+  document.querySelector('.finance-item .amount-box').textContent = `UGX ${data.balance.toLocaleString()}`;
+}
+
+// Initialize
+fetchBankAccountBalance();
 
     // Open Add Product Modal
     function openAddProductModal() {
