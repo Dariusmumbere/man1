@@ -528,7 +528,7 @@
       fetchProducts().then(products => {
         const stockItemSelect = document.getElementById('stockItemSelect');
         stockItemSelect.innerHTML = '<option value="" disabled selected>Select Product</option>' +
-          products.map(product => `<option value="${product.name}" data-type="${product.type}" data-buying-price="${product.buying_price}">${product.name}</option>`).join('');
+          products.map(product => `<option value="${product.name}" data-type="${product.type}" data-buying-price="${product.buying_price}">${product.name} (${product.type})</option>`).join('');
       });
       document.getElementById('addStockModal').classList.remove('hidden');
     }
