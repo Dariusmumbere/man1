@@ -365,12 +365,16 @@
   <!-- Add Product Modal -->
   <div id="addProductModal" class="modal-overlay hidden">
     <div class="modal-content">
-      <h3 class="text-lg font-semibold mb-4 dark:text-white"><i class="fas fa-plus mr-2"></i>Product inventory</h3>
+      <h3 class="text-lg font-semibold mb-4 dark:text-white"><i class="fas fa-plus mr-2"></i>Product Inventory</h3>
       <form id="addProductForm">
         <input type="text" placeholder="Product Name" class="w-full p-2 border rounded mb-4 dark:bg-gray-700 dark:text-white" required>
         <input type="text" placeholder="Product Type" class="w-full p-2 border rounded mb-4 dark:bg-gray-700 dark:text-white" required>
         <input type="number" placeholder="Buying Price" id="buyingPriceInput" class="w-full p-2 border rounded mb-4 dark:bg-gray-700 dark:text-white" required>
         <input type="number" placeholder="Selling Price" id="sellingPriceInput" class="w-full p-2 border rounded mb-4 dark:bg-gray-700 dark:text-white" required readonly>
+        <!-- New Fields -->
+        <input type="number" placeholder="Quantity Available" id="quantityAvailable" class="w-full p-2 border rounded mb-4 dark:bg-gray-700 dark:text-white" required>
+        <input type="number" placeholder="Unit Price" id="unitPrice" class="w-full p-2 border rounded mb-4 dark:bg-gray-700 dark:text-white" required>
+        <input type="number" placeholder="Total Amount Bought" id="totalAmountBought" class="w-full p-2 border rounded mb-4 dark:bg-gray-700 dark:text-white" required readonly>
         <button type="submit" class="gray-button">Add Product</button>
       </form>
       <button onclick="closeModal('addProductModal')" class="close-button mt-2">Close</button>
@@ -385,6 +389,7 @@
         <thead>
           <tr>
             <th>Product Name</th>
+            <th>Product Type</th>
             <th>Available Quantity</th>
             <th>Total Invested</th>
             <th>Actions</th>
@@ -410,6 +415,8 @@
           <option value="" disabled selected>Select Product</option>
           <!-- Product options will be dynamically added here -->
         </select>
+        <input type="text" id="productTypeInput" placeholder="Product Type" class="w-full p-2 border rounded mb-4 dark:bg-gray-700 dark:text-white" required readonly>
+        <input type="number" id="defaultUnitPriceInput" placeholder="Default Unit Price" class="w-full p-2 border rounded mb-4 dark:bg-gray-700 dark:text-white" required readonly>
         <input type="number" placeholder="Quantity" class="w-full p-2 border rounded mb-4 dark:bg-gray-700 dark:text-white" required>
         <input type="number" placeholder="Price per Unit" class="w-full p-2 border rounded mb-4 dark:bg-gray-700 dark:text-white" required>
         <button type="submit" class="gray-button">Add Quantity</button>
@@ -501,17 +508,9 @@
 
     // Fetch and display bank account balance
     async function fetchBankAccountBalance() {
-      try {
-        const response = await fetch(`${backendUrl}/bank_account/`);
-        if (!response.ok) {
-          throw new Error('Failed to fetch bank account balance');
-        }
-        const data = await response.json();
-        document.querySelector('.finance-item .amount-box').textContent = `UGX ${data.balance.toLocaleString()}`;
-      } catch (error) {
-        console.error('Error fetching bank account balance:', error);
-        alert('Failed to fetch bank account balance');
-      }
+      const response = await fetch(`${backendUrl}/bank_account/`);
+      const data = await response.json();
+      document.querySelector('.finance-item .amount-box').textContent = `UGX ${data.balance.toLocaleString()}`;
     }
 
     // Initialize
@@ -533,10 +532,19 @@
       fetchProducts().then(products => {
         const stockItemSelect = document.getElementById('stockItemSelect');
         stockItemSelect.innerHTML = '<option value="" disabled selected>Select Product</option>' +
-          products.map(product => `<option value="${product.name}" data-type="${product.type}">${product.name} (${product.type})</option>`).join('');
+          products.map(product => `<option value="${product.name}" data-type="${product.type}" data-buying-price="${product.buying_price}">${product.name}</option>`).join('');
       });
       document.getElementById('addStockModal').classList.remove('hidden');
     }
+
+    // Populate Product Type and Default Unit Price when Product is selected
+    document.getElementById('stockItemSelect').addEventListener('change', (e) => {
+      const selectedProduct = e.target.options[e.target.selectedIndex];
+      const productType = selectedProduct.getAttribute('data-type');
+      const buyingPrice = selectedProduct.getAttribute('data-buying-price');
+      document.getElementById('productTypeInput').value = productType || '';
+      document.getElementById('defaultUnitPriceInput').value = buyingPrice || '';
+    });
 
     // Open Add Service Modal
     function openAddServiceModal() {
@@ -561,31 +569,32 @@
       const productType = e.target[1].value;
       const buyingPrice = parseFloat(e.target[2].value);
       const sellingPrice = parseFloat(e.target[3].value);
+      const quantityAvailable = parseFloat(e.target[4].value);
+      const unitPrice = parseFloat(e.target[5].value);
+      const totalAmountBought = parseFloat(e.target[6].value);
 
-      try {
-        const response = await fetch(`${backendUrl}/products/`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            name: productName,
-            type: productType,
-            buying_price: buyingPrice,
-            selling_price: sellingPrice
-          })
-        });
+      const response = await fetch(`${backendUrl}/products/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: productName,
+          type: productType,
+          buying_price: buyingPrice,
+          selling_price: sellingPrice,
+          quantity_available: quantityAvailable,
+          unit_price: unitPrice,
+          total_amount_bought: totalAmountBought
+        })
+      });
 
-        if (!response.ok) {
-          throw new Error('Failed to add product');
-        }
-
+      if (response.ok) {
         alert('Product added successfully!');
         e.target.reset();
         closeModal('addProductModal');
         fetchProducts();
-      } catch (error) {
-        console.error('Error adding product:', error);
+      } else {
         alert('Failed to add product');
       }
     });
@@ -594,33 +603,29 @@
     document.getElementById('addStockForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const productName = document.getElementById('stockItemSelect').value;
-      const quantity = parseFloat(e.target[1].value);
-      const pricePerUnit = parseFloat(e.target[2].value);
+      const productType = document.getElementById('productTypeInput').value;
+      const quantity = parseFloat(e.target[2].value);
+      const pricePerUnit = parseFloat(e.target[3].value);
 
-      try {
-        const response = await fetch(`${backendUrl}/stock/`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            product_name: productName,
-            product_type: document.getElementById('stockItemSelect').selectedOptions[0].dataset.type,
-            quantity: quantity,
-            price_per_unit: pricePerUnit
-          })
-        });
+      const response = await fetch(`${backendUrl}/stock/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          product_name: productName,
+          product_type: productType,
+          quantity: quantity,
+          price_per_unit: pricePerUnit
+        })
+      });
 
-        if (!response.ok) {
-          throw new Error('Failed to add stock');
-        }
-
+      if (response.ok) {
         alert('Stock added successfully!');
         e.target.reset();
         closeModal('addStockModal');
         fetchStock();
-      } catch (error) {
-        console.error('Error adding stock:', error);
+      } else {
         alert('Failed to add stock');
       }
     });
@@ -632,142 +637,113 @@
       const serviceDescription = e.target[1].value;
       const servicePrice = parseFloat(e.target[2].value);
 
-      try {
-        const response = await fetch(`${backendUrl}/services/`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            name: serviceName,
-            description: serviceDescription,
-            price: servicePrice
-          })
-        });
+      const response = await fetch(`${backendUrl}/services/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: serviceName,
+          description: serviceDescription,
+          price: servicePrice
+        })
+      });
 
-        if (!response.ok) {
-          throw new Error('Failed to add service');
-        }
-
+      if (response.ok) {
         alert('Service added successfully!');
         e.target.reset();
         closeModal('addServiceModal');
         fetchServices();
-      } catch (error) {
-        console.error('Error adding service:', error);
+      } else {
         alert('Failed to add service');
       }
     });
 
     // Fetch Products
     async function fetchProducts() {
-      try {
-        const response = await fetch(`${backendUrl}/products/`);
-        if (!response.ok) {
-          throw new Error('Failed to fetch products');
-        }
-        const data = await response.json();
-        const productList = document.getElementById('productList');
-        productList.innerHTML = data.products.map(product => `
-          <div class="product-item">
-            <span>${product.name} (${product.type})</span>
-            <div class="actions">
-              <i class="fas fa-trash text-red-500" onclick="deleteProduct('${product.name}', '${product.type}')"></i>
-              <i class="fas fa-edit text-blue-500" onclick="editProduct('${product.name}', '${product.type}', ${product.buying_price}, ${product.selling_price})"></i>
-              <i class="fas fa-eye text-green-500" onclick="showProductDetails('${product.name}', '${product.type}', ${product.buying_price}, ${product.selling_price})"></i>
-            </div>
+      const response = await fetch(`${backendUrl}/products/`);
+      const data = await response.json();
+      const productList = document.getElementById('productList');
+      productList.innerHTML = data.products.map(product => `
+        <div class="product-item">
+          <span>${product.name}</span>
+          <span class="product-type">${product.type}</span>
+          <span>Quantity: ${product.quantity_available}</span>
+          <span>Unit Price: UGX ${product.unit_price.toLocaleString()}</span>
+          <span>Total Amount: UGX ${product.total_amount_bought.toLocaleString()}</span>
+          <div class="actions">
+            <i class="fas fa-trash text-red-500" onclick="deleteProduct('${product.name}', '${product.type}')"></i>
+            <i class="fas fa-edit text-blue-500" onclick="editProduct('${product.name}', '${product.type}', ${product.buying_price}, ${product.selling_price})"></i>
+            <i class="fas fa-eye text-green-500" onclick="showProductDetails('${product.name}', '${product.type}', ${product.buying_price}, ${product.selling_price})"></i>
           </div>
-        `).join('');
-        return data.products;
-      } catch (error) {
-        console.error('Error fetching products:', error);
-        alert('Failed to fetch products');
-      }
+        </div>
+      `).join('');
+      return data.products;
     }
 
     // Fetch Stock
     async function fetchStock() {
-      try {
-        const response = await fetch(`${backendUrl}/stock/`);
-        if (!response.ok) {
-          throw new Error('Failed to fetch stock');
-        }
-        const data = await response.json();
-        const stockTableBody = document.getElementById('stockTableBody');
-        stockTableBody.innerHTML = data.stock.map(item => `
-          <tr>
-            <td>${item.product_name} (${item.product_type || 'N/A'})</td>
-            <td>${item.quantity}</td>
-            <td>UGX ${(item.price_per_unit * item.quantity).toLocaleString()}</td>
-            <td class="actions">
-              <i class="fas fa-trash text-red-500 hover:text-red-700 cursor-pointer" onclick="deleteStockItem('${item.product_name}', '${item.product_type}')"></i>
-              <i class="fas fa-edit text-blue-500 hover:text-blue-700 cursor-pointer ml-2" onclick="editStockItem('${item.product_name}', '${item.product_type}', ${item.quantity}, ${item.price_per_unit})"></i>
-              <i class="fas fa-eye text-green-500 hover:text-green-700 cursor-pointer ml-2" onclick="viewStockItem('${item.product_name}', '${item.product_type}', ${item.quantity}, ${item.price_per_unit})"></i>
-            </td>
-          </tr>
-        `).join('');
-      } catch (error) {
-        console.error('Error fetching stock:', error);
-        alert('Failed to fetch stock');
-      }
+      const response = await fetch(`${backendUrl}/stock/`);
+      const data = await response.json();
+      const stockTableBody = document.getElementById('stockTableBody');
+      stockTableBody.innerHTML = data.stock.map(item => `
+        <tr>
+          <td>${item.product_name}</td>
+          <td>${item.product_type || 'N/A'}</td>
+          <td>${item.quantity}</td>
+          <td>UGX ${(item.price_per_unit * item.quantity).toLocaleString()}</td>
+          <td class="actions">
+            <i class="fas fa-trash text-red-500 hover:text-red-700 cursor-pointer" onclick="deleteStockItem('${item.product_name}', '${item.product_type}')"></i>
+            <i class="fas fa-edit text-blue-500 hover:text-blue-700 cursor-pointer ml-2" onclick="editStockItem('${item.product_name}', '${item.product_type}', ${item.quantity}, ${item.price_per_unit})"></i>
+            <i class="fas fa-eye text-green-500 hover:text-green-700 cursor-pointer ml-2" onclick="viewStockItem('${item.product_name}', '${item.product_type}', ${item.quantity}, ${item.price_per_unit})"></i>
+          </td>
+        </tr>
+      `).join('');
     }
 
     // Fetch Services
     async function fetchServices() {
-      try {
-        const response = await fetch(`${backendUrl}/services/`);
-        if (!response.ok) {
-          throw new Error('Failed to fetch services');
-        }
-        const data = await response.json();
-        const serviceList = document.getElementById('serviceList');
-        const serviceTableBody = document.getElementById('serviceTableBody');
+      const response = await fetch(`${backendUrl}/services/`);
+      const data = await response.json();
+      const serviceList = document.getElementById('serviceList');
+      const serviceTableBody = document.getElementById('serviceTableBody');
 
-        serviceList.innerHTML = data.services.map(service => `
-          <div class="p-2 bg-gray-200 dark:bg-gray-600 rounded dark:text-white">
-            <span>${service.name}</span>
-            <div class="actions">
-              <i class="fas fa-trash text-red-500" onclick="deleteService('${service.name}')"></i>
-              <i class="fas fa-edit text-blue-500" onclick="editService('${service.name}', '${service.description}', ${service.price})"></i>
-              <i class="fas fa-eye text-green-500" onclick="viewService('${service.name}', '${service.description}', ${service.price})"></i>
-            </div>
+      serviceList.innerHTML = data.services.map(service => `
+        <div class="p-2 bg-gray-200 dark:bg-gray-600 rounded dark:text-white">
+          <span>${service.name}</span>
+          <div class="actions">
+            <i class="fas fa-trash text-red-500" onclick="deleteService('${service.name}')"></i>
+            <i class="fas fa-edit text-blue-500" onclick="editService('${service.name}', '${service.description}', ${service.price})"></i>
+            <i class="fas fa-eye text-green-500" onclick="viewService('${service.name}', '${service.description}', ${service.price})"></i>
           </div>
-        `).join('');
+        </div>
+      `).join('');
 
-        serviceTableBody.innerHTML = data.services.map(service => `
-          <tr>
-            <td>${service.name}</td>
-            <td>${service.description}</td>
-            <td>${service.price}</td>
-            <td class="actions">
-              <i class="fas fa-trash text-red-500 hover:text-red-700 cursor-pointer" onclick="deleteService('${service.name}')"></i>
-              <i class="fas fa-edit text-blue-500 hover:text-blue-700 cursor-pointer ml-2" onclick="editService('${service.name}', '${service.description}', ${service.price})"></i>
-              <i class="fas fa-eye text-green-500 hover:text-green-700 cursor-pointer ml-2" onclick="viewService('${service.name}', '${service.description}', ${service.price})"></i>
-            </td>
-          </tr>
-        `).join('');
-      } catch (error) {
-        console.error('Error fetching services:', error);
-        alert('Failed to fetch services');
-      }
+      serviceTableBody.innerHTML = data.services.map(service => `
+        <tr>
+          <td>${service.name}</td>
+          <td>${service.description}</td>
+          <td>${service.price}</td>
+          <td class="actions">
+            <i class="fas fa-trash text-red-500 hover:text-red-700 cursor-pointer" onclick="deleteService('${service.name}')"></i>
+            <i class="fas fa-edit text-blue-500 hover:text-blue-700 cursor-pointer ml-2" onclick="editService('${service.name}', '${service.description}', ${service.price})"></i>
+            <i class="fas fa-eye text-green-500 hover:text-green-700 cursor-pointer ml-2" onclick="viewService('${service.name}', '${service.description}', ${service.price})"></i>
+          </td>
+        </tr>
+      `).join('');
     }
 
     // Delete Product
     async function deleteProduct(productName, productType) {
       if (confirm(`Are you sure you want to delete ${productName} (${productType})?`)) {
-        try {
-          const response = await fetch(`${backendUrl}/products/${productName}/${productType}`, {
-            method: 'DELETE',
-          });
+        const response = await fetch(`${backendUrl}/products/${productName}/${productType}`, {
+          method: 'DELETE',
+        });
 
-          if (!response.ok) {
-            throw new Error('Failed to delete product');
-          }
-
+        if (response.ok) {
           alert('Product deleted successfully!');
           fetchProducts(); // Refresh the product list
-        } catch (error) {
-          console.error('Error deleting product:', error);
+        } else {
           alert('Failed to delete product');
         }
       }
@@ -776,19 +752,14 @@
     // Delete Stock Item
     async function deleteStockItem(productName, productType) {
       if (confirm(`Are you sure you want to delete ${productName} (${productType})?`)) {
-        try {
-          const response = await fetch(`${backendUrl}/stock/${productName}/${productType}`, {
-            method: 'DELETE',
-          });
+        const response = await fetch(`${backendUrl}/stock/${productName}/${productType}`, {
+          method: 'DELETE',
+        });
 
-          if (!response.ok) {
-            throw new Error('Failed to delete stock item');
-          }
-
+        if (response.ok) {
           alert(`${productName} (${productType}) deleted successfully!`);
           fetchStock(); // Refresh the stock table
-        } catch (error) {
-          console.error('Error deleting stock item:', error);
+        } else {
           alert('Failed to delete stock item');
         }
       }
@@ -797,19 +768,14 @@
     // Delete Service
     async function deleteService(serviceName) {
       if (confirm(`Are you sure you want to delete ${serviceName}?`)) {
-        try {
-          const response = await fetch(`${backendUrl}/services/${serviceName}`, {
-            method: 'DELETE',
-          });
+        const response = await fetch(`${backendUrl}/services/${serviceName}`, {
+          method: 'DELETE',
+        });
 
-          if (!response.ok) {
-            throw new Error('Failed to delete service');
-          }
-
+        if (response.ok) {
           alert('Service deleted successfully!');
           fetchServices(); // Refresh the services list
-        } catch (error) {
-          console.error('Error deleting service:', error);
+        } else {
           alert('Failed to delete service');
         }
       }
@@ -831,30 +797,25 @@
         const buyingPrice = parseFloat(e.target[2].value);
         const sellingPrice = parseFloat(e.target[3].value);
 
-        try {
-          const response = await fetch(`${backendUrl}/products/${name}/${type}`, {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              name: productName,
-              type: productType,
-              buying_price: buyingPrice,
-              selling_price: sellingPrice
-            })
-          });
+        const response = await fetch(`${backendUrl}/products/${name}/${type}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            name: productName,
+            type: productType,
+            buying_price: buyingPrice,
+            selling_price: sellingPrice
+          })
+        });
 
-          if (!response.ok) {
-            throw new Error('Failed to update product');
-          }
-
+        if (response.ok) {
           alert('Product updated successfully!');
           e.target.reset();
           closeModal('addProductModal');
           fetchProducts();
-        } catch (error) {
-          console.error('Error updating product:', error);
+        } else {
           alert('Failed to update product');
         }
       };
@@ -866,36 +827,33 @@
 
       const stockItemSelect = document.getElementById('stockItemSelect');
       stockItemSelect.value = productName;
+      document.getElementById('productTypeInput').value = productType;
+      document.getElementById('defaultUnitPriceInput').value = pricePerUnit;
       document.getElementById('addStockForm').querySelector('input[type="number"]').value = quantity;
       document.getElementById('addStockForm').querySelectorAll('input[type="number"]')[1].value = pricePerUnit;
 
       const form = document.getElementById('addStockForm');
       form.onsubmit = async (e) => {
         e.preventDefault();
-        const updatedQuantity = parseFloat(e.target[1].value);
-        const updatedPricePerUnit = parseFloat(e.target[2].value);
+        const updatedQuantity = parseFloat(e.target[2].value);
+        const updatedPricePerUnit = parseFloat(e.target[3].value);
 
-        try {
-          const response = await fetch(`${backendUrl}/stock/${productName}/${productType}`, {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              quantity: updatedQuantity,
-              price_per_unit: updatedPricePerUnit,
-            }),
-          });
+        const response = await fetch(`${backendUrl}/stock/${productName}/${productType}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            quantity: updatedQuantity,
+            price_per_unit: updatedPricePerUnit,
+          }),
+        });
 
-          if (!response.ok) {
-            throw new Error('Failed to update stock item');
-          }
-
+        if (response.ok) {
           alert(`${productName} (${productType}) updated successfully!`);
           closeModal('addStockModal');
           fetchStock();
-        } catch (error) {
-          console.error('Error updating stock item:', error);
+        } else {
           alert('Failed to update stock item');
         }
       };
@@ -915,29 +873,24 @@
         const serviceDescription = e.target[1].value;
         const servicePrice = parseFloat(e.target[2].value);
 
-        try {
-          const response = await fetch(`${backendUrl}/services/${name}`, {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              name: serviceName,
-              description: serviceDescription,
-              price: servicePrice
-            })
-          });
+        const response = await fetch(`${backendUrl}/services/${name}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            name: serviceName,
+            description: serviceDescription,
+            price: servicePrice
+          })
+        });
 
-          if (!response.ok) {
-            throw new Error('Failed to update service');
-          }
-
+        if (response.ok) {
           alert('Service updated successfully!');
           e.target.reset();
           closeModal('addServiceModal');
           fetchServices();
-        } catch (error) {
-          console.error('Error updating service:', error);
+        } else {
           alert('Failed to update service');
         }
       };
@@ -974,17 +927,32 @@
     }
 
     // Automatic Selling Price Calculation
-    const buyingPriceInput = document.getElementById('buyingPriceInput');
-    const sellingPriceInput = document.getElementById('sellingPriceInput');
-    if (buyingPriceInput && sellingPriceInput) {
-      buyingPriceInput.addEventListener('input', (e) => {
-        const buyingPrice = parseFloat(e.target.value);
-        if (!isNaN(buyingPrice)) {
-          const sellingPrice = buyingPrice * 1.1; // 10% markup
-          sellingPriceInput.value = sellingPrice.toFixed(2);
-        }
-      });
-    }
+    document.getElementById('buyingPriceInput').addEventListener('input', (e) => {
+      const buyingPrice = parseFloat(e.target.value);
+      if (!isNaN(buyingPrice)) {
+        const sellingPrice = buyingPrice * 1.1; // 10% markup
+        document.getElementById('sellingPriceInput').value = sellingPrice.toFixed(2);
+      }
+    });
+
+    // Automatic Total Amount Bought Calculation
+    document.getElementById('quantityAvailable').addEventListener('input', (e) => {
+      const quantity = parseFloat(e.target.value);
+      const unitPrice = parseFloat(document.getElementById('unitPrice').value);
+      if (!isNaN(quantity) && !isNaN(unitPrice)) {
+        const totalAmountBought = quantity * unitPrice;
+        document.getElementById('totalAmountBought').value = totalAmountBought.toFixed(2);
+      }
+    });
+
+    document.getElementById('unitPrice').addEventListener('input', (e) => {
+      const unitPrice = parseFloat(e.target.value);
+      const quantity = parseFloat(document.getElementById('quantityAvailable').value);
+      if (!isNaN(unitPrice) && !isNaN(quantity)) {
+        const totalAmountBought = quantity * unitPrice;
+        document.getElementById('totalAmountBought').value = totalAmountBought.toFixed(2);
+      }
+    });
 
     // Initialize
     fetchProducts();
