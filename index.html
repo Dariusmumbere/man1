@@ -577,34 +577,35 @@
       }
     });
 
-    // Add Stock
-    document.getElementById('addStockForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const productName = document.getElementById('stockItemSelect').value;
-      const quantity = parseFloat(e.target[1].value);
-      const pricePerUnit = parseFloat(e.target[2].value);
+// Add Stock
+document.getElementById('addStockForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const productName = document.getElementById('stockItemSelect').value;
+    const quantity = parseFloat(e.target[1].value);
+    const pricePerUnit = parseFloat(e.target[2].value);
 
-      const response = await fetch(`${backendUrl}/stock/`, {
+    const response = await fetch(`${backendUrl}/stock/`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+            'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          product_name: productName,
-          quantity: quantity,
-          price_per_unit: pricePerUnit
+            product_name: productName,
+            product_type: '', // Ensure this is populated if required
+            quantity: quantity,
+            price_per_unit: pricePerUnit
         })
-      });
+    });
 
-      if (response.ok) {
+    if (response.ok) {
         alert('Stock added successfully!');
         e.target.reset();
         closeModal('addStockModal');
         fetchStock();
-      } else {
+    } else {
         alert('Failed to add stock');
-      }
-    });
+    }
+});
 
     // Add Service
     document.getElementById('addServiceForm').addEventListener('submit', async (e) => {
