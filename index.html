@@ -280,9 +280,6 @@
         <button onclick="openAddProductModal()" class="gray-button">
           <i class="fas fa-plus mr-2"></i>Add Product
         </button>
-        <button onclick="openAddStockModal()" class="gray-button mt-4">
-          <i class="fas fa-plus mr-2"></i>Add Stock
-        </button>
         <div class="mt-4">
           <details class="bg-gray-100 dark:bg-gray-700 p-2 rounded">
             <summary class="cursor-pointer dark:text-white">View Products</summary>
@@ -380,22 +377,6 @@
     </div>
   </div>
 
-  <!-- Add Stock Modal -->
-  <div id="addStockModal" class="modal-overlay hidden">
-    <div class="modal-content">
-      <h3 class="text-lg font-semibold mb-4 dark:text-white"><i class="fas fa-plus mr-2"></i>Add Stock</h3>
-      <form id="addStockForm">
-        <input type="text" placeholder="Product Name" class="w-full p-2 border rounded mb-4 dark:bg-gray-700 dark:text-white" required>
-        <input type="text" placeholder="Product Type" class="w-full p-2 border rounded mb-4 dark:bg-gray-700 dark:text-white" required>
-        <input type="number" placeholder="Quantity Brought" class="w-full p-2 border rounded mb-4 dark:bg-gray-700 dark:text-white" required>
-        <input type="number" placeholder="Unit Price" class="w-full p-2 border rounded mb-4 dark:bg-gray-700 dark:text-white" required>
-        <input type="number" placeholder="Total Invested" class="w-full p-2 border rounded mb-4 dark:bg-gray-700 dark:text-white" required readonly>
-        <button type="submit" class="gray-button">Add Stock</button>
-      </form>
-      <button onclick="closeModal('addStockModal')" class="close-button mt-2">Close</button>
-    </div>
-  </div>
-
   <!-- Stock Management Modal -->
   <div id="stockManagementModal" class="modal-overlay hidden">
     <div class="modal-content">
@@ -417,6 +398,24 @@
         <i class="fas fa-plus mr-2"></i>Add New Quantity
       </button>
       <button onclick="closeModal('stockManagementModal')" class="close-button mt-2">Close</button>
+    </div>
+  </div>
+
+  <!-- Add Stock Modal -->
+  <div id="addStockModal" class="modal-overlay hidden">
+    <div class="modal-content">
+      <h3 class="text-lg font-semibold mb-4 dark:text-white"><i class="fas fa-plus mr-2"></i>Add New Quantity</h3>
+      <form id="addStockForm">
+        <select id="stockItemSelect" class="w-full p-2 border rounded mb-4 dark:bg-gray-700 dark:text-white" required>
+          <option value="" disabled selected>Select Product</option>
+          <!-- Product options will be dynamically added here -->
+        </select>
+        <input type="number" id="defaultUnitPriceInput" placeholder="Default Unit Price" class="w-full p-2 border rounded mb-4 dark:bg-gray-700 dark:text-white" required readonly>
+        <input type="number" placeholder="Quantity" class="w-full p-2 border rounded mb-4 dark:bg-gray-700 dark:text-white" required>
+        <input type="number" placeholder="Price per Unit" class="w-full p-2 border rounded mb-4 dark:bg-gray-700 dark:text-white" required>
+        <button type="submit" class="gray-button">Add Quantity</button>
+      </form>
+      <button onclick="closeModal('addStockModal')" class="close-button mt-2">Close</button>
     </div>
   </div>
 
@@ -516,16 +515,28 @@
       document.getElementById('addProductModal').classList.remove('hidden');
     }
 
-    // Open Add Stock Modal
-    function openAddStockModal() {
-      document.getElementById('addStockModal').classList.remove('hidden');
-    }
-
     // Open Stock Management Modal
     function openStockManagementModal() {
       document.getElementById('stockManagementModal').classList.remove('hidden');
       fetchStock();
     }
+
+    // Open Add Stock Modal
+    function openAddStockModal() {
+    fetchProducts().then(products => {
+        const stockItemSelect = document.getElementById('stockItemSelect');
+        stockItemSelect.innerHTML = '<option value="" disabled selected>Select Product</option>' +
+            products.map(product => `<option value="${product.name}" data-buying-price="${product.buying_price}" data-product-type="${product.type}">${product.name} (${product.type})</option>`).join('');
+    });
+    document.getElementById('addStockModal').classList.remove('hidden');
+}
+
+    // Populate Default Unit Price when Product is selected
+    document.getElementById('stockItemSelect').addEventListener('change', (e) => {
+      const selectedProduct = e.target.options[e.target.selectedIndex];
+      const buyingPrice = selectedProduct.getAttribute('data-buying-price');
+      document.getElementById('defaultUnitPriceInput').value = buyingPrice || '';
+    });
 
     // Open Add Service Modal
     function openAddServiceModal() {
@@ -575,37 +586,36 @@
     });
 
     // Add Stock
-    document.getElementById('addStockForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const productName = e.target[0].value;
-      const productType = e.target[1].value;
-      const quantity = parseFloat(e.target[2].value);
-      const unitPrice = parseFloat(e.target[3].value);
-      const totalInvested = parseFloat(e.target[4].value);
+document.getElementById('addStockForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const productName = document.getElementById('stockItemSelect').value;
+    const selectedProduct = document.getElementById('stockItemSelect').options[document.getElementById('stockItemSelect').selectedIndex];
+    const productType = selectedProduct.getAttribute('data-product-type'); // Assuming you add this attribute
+    const quantity = parseFloat(e.target[2].value);
+    const pricePerUnit = parseFloat(e.target[3].value);
 
-      const response = await fetch(`${backendUrl}/stock/`, {
+    const response = await fetch(`${backendUrl}/stock/`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+            'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          product_name: productName,
-          product_type: productType,
-          quantity: quantity,
-          price_per_unit: unitPrice,
-          total_invested: totalInvested
+            product_name: productName,
+            product_type: productType, // Include product_type
+            quantity: quantity,
+            price_per_unit: pricePerUnit
         })
-      });
+    });
 
-      if (response.ok) {
+    if (response.ok) {
         alert('Stock added successfully!');
         e.target.reset();
         closeModal('addStockModal');
         fetchStock();
-      } else {
+    } else {
         alert('Failed to add stock');
-      }
-    });
+    }
+});
 
     // Add Service
     document.getElementById('addServiceForm').addEventListener('submit', async (e) => {
